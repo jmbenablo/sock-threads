@@ -118,7 +118,7 @@ int main(int argc , char *argv[])
         {
            
 
-            printf("Bytes read: %d\n", len);
+            //printf("Bytes read: %d\n", len);
 
             /* Send the file chunk */ 
             if( send(sock, buffer, len, ZERO) < ZERO)

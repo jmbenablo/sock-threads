@@ -4,6 +4,7 @@
 #include<sys/socket.h>
 #include<arpa/inet.h>
 #include<unistd.h>
+#include<pthread.h>
 
 #define MAX_LEN 1024
 #define SOCKET_FAIL -1
@@ -31,62 +32,18 @@ int create_Socket()
 
     return sock;
 }
- 
-int main(int argc , char *argv[])
+
+void *transfer_handler(void *in_sock)
 {
-    int size_file_recv;
-    int num_bytes_recv = ZERO;
-    int socket_fd, client_sock, client_size, read_size;
-    struct sockaddr_in server_addr, client_addr;
+    FILE *fptr = NULL;
     unsigned char client_msg[MAX_LEN];
     char output[MAX_LEN] = "copy_";
-    char message_not_full[] = "not full";
-    FILE *fptr = NULL;
-     
-    /*  Create Socket  */
-    socket_fd = create_Socket();
-     
-    /*  Prepare the sockaddr_in structure   */
-    server_addr.sin_family = AF_INET;
-    server_addr.sin_addr.s_addr = INADDR_ANY;
-    server_addr.sin_port = htons( TCP_PORT );
-     
-    /*  Bind*/
-    if( bind(socket_fd, (struct sockaddr *)&server_addr, sizeof(server_addr)) < ZERO)
-    {
-        /* Error */
-        printf("Bind failed!\n");
-        return ONE;
-    }
-    else
-    {
-        /*printf("Bind success!\n");   */
-    }
-     
-    /*  Listen  */
-    listen(socket_fd, BACKLOG_3);
-     
-    /*  Accept and incoming connections */
-    printf("Listening for incoming request...\n");
-    client_size = sizeof(struct sockaddr_in);
-     
-    /* Accept connection from an incoming client */
-    client_sock = accept(socket_fd, (struct sockaddr *)&client_addr, (socklen_t*)&client_size);
-    
-    if (client_sock < ZERO)
-    {
-        /*perror("accept failed");*/
-        printf("Request failed\n");
-        return ONE;
-    }
-    else
-    {
-        printf("Request received,");
-    }
-     
-    
-    memset(client_msg, ZERO,MAX_LEN);
+    int client_sock = *((int *)in_sock);    /*Put client socket here */
+    int read_size = ZERO;
+    int num_bytes_recv = ZERO;
+
     /*  Receive a message from client   */
+    memset(client_msg, ZERO,MAX_LEN);
     while( (read_size = recv(client_sock, client_msg, MAX_LEN, ZERO)) > ZERO )
     {
         
@@ -102,7 +59,7 @@ int main(int argc , char *argv[])
             else
             {
                 printf("Fail to open\n");
-                return ONE;
+                exit(EXIT_FAILURE);
             }
 
             printf("Receiving...\n");
@@ -126,7 +83,7 @@ int main(int argc , char *argv[])
             num_bytes_recv += read_size;
             
         }
-        printf("Bytes received: %d\n", read_size);
+        //printf("Bytes received: %d\n", read_size);
         memset(client_msg, ZERO,MAX_LEN);
    
     }
@@ -156,10 +113,88 @@ int main(int argc , char *argv[])
         //printf("Done!\n");
     }
 
+    /* Close client socket */
+    close(*(int *)in_sock);
+    free(in_sock);
+
+    //return ;
+
+}
+ 
+int main(int argc , char *argv[])
+{
+    int socket_fd, client_sock, client_size, *new_socket;
+    struct sockaddr_in server_addr, client_addr;
+    
+     
+    /*  Create Socket  */
+    socket_fd = create_Socket();
+     
+    /*  Prepare the sockaddr_in structure   */
+    server_addr.sin_family = AF_INET;
+    server_addr.sin_addr.s_addr = INADDR_ANY;
+    server_addr.sin_port = htons( TCP_PORT );
+     
+    /*  Bind*/
+    if( bind(socket_fd, (struct sockaddr *)&server_addr, sizeof(server_addr)) < ZERO)
+    {
+        /* Error */
+        printf("Bind failed!\n");
+        return ONE;
+    }
+    else
+    {
+        /*printf("Bind success!\n");   */
+    }
+     
+    /*  Listen  */
+    listen(socket_fd, BACKLOG_3);
+     
+    /*  Accept and incoming connections */
+    printf("Listening for incoming request...\n");
+    client_size = sizeof(struct sockaddr_in);
+     
+    /* Accept connection from an incoming client */
+    while( client_sock = accept(socket_fd, (struct sockaddr *)&client_addr, (socklen_t*)&client_size) )
+    {
+        printf("Request received,");
+
+        pthread_t s_thread;
+        new_socket = malloc(ONE);
+        *new_socket = client_sock;
+
+        if( pthread_create(&s_thread, NULL, transfer_handler, (void * )new_socket ) < ZERO)
+        {
+            printf("Cannot create thread\n");
+            return ONE;
+        }
+        else
+        {
+
+        }
+
+        pthread_join( s_thread , NULL);
+
+    }
+
+    if (client_sock < ZERO)
+    {
+        /*perror("accept failed");*/
+        printf("Request failed\n");
+        return ONE;
+    }
+    else
+    {
+    //    
+    }
+     
+    //transfer_handler(client_sock);
+
     
 
+    //close(client_sock);
     close(socket_fd);
-    close(client_sock);
+
 
     return ZERO;
     
