@@ -144,7 +144,7 @@ int main(int argc , char *argv[])
      
     if(read_size == ZERO)
     {
-        printf("Client disconnected\n");
+        printf("Done.\n");
         fflush(stdout);
     }
     else if(read_size == SOCKET_FAIL)
@@ -153,7 +153,7 @@ int main(int argc , char *argv[])
     }
     else
     {
-        printf("Done!\n");
+        //printf("Done!\n");
     }
 
     
