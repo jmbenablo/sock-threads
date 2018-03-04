@@ -12,155 +12,144 @@
 #define BACKLOG_3 3
 #define TCP_PORT 8888
 
-int create_Socket()
-{
-    int sock;
-    /*  Create Socket  */
-    sock = socket(AF_INET, SOCK_STREAM, ZERO);
+int g_available = 1;
+typedef struct Ftp{
+    int listening;
+    int available;
+    int socket;
+    pthread_mutex_t global_available;
+};
 
-    if (sock == SOCKET_FAIL)
-    {
+typedef struct {
+    unsigned int type;
+    unsigned int size;
+    unsigned char data[MAX_LEN];
+};
+
+int create_Socket(){
+    int sock;
+    sock = socket(AF_INET, SOCK_STREAM, ZERO);
+    if (sock == SOCKET_FAIL) {
         printf("Could not create socket\n");
         exit(EXIT_FAILURE);
     }
-    else
-    {
-        /* printf("Socket created!\n");  */  
-    }
-    
-
     return sock;
 }
- 
-int main(int argc , char *argv[])
-{
+
+int receive(void *socket_fd_ptr, void ){
+    int socket_fd = (int) *socket_fd_ptr
+
     int size_file_recv;
     int num_bytes_recv = ZERO;
-    int socket_fd, client_sock, client_size, read_size;
+    int client_sock, client_size, read_size;
     struct sockaddr_in server_addr, client_addr;
     unsigned char client_msg[MAX_LEN];
     char output[MAX_LEN] = "copy_";
     char message_not_full[] = "not full";
     FILE *fptr = NULL;
-     
-    /*  Create Socket  */
-    socket_fd = create_Socket();
-     
     /*  Prepare the sockaddr_in structure   */
     server_addr.sin_family = AF_INET;
     server_addr.sin_addr.s_addr = INADDR_ANY;
     server_addr.sin_port = htons( TCP_PORT );
-     
     /*  Bind*/
-    if( bind(socket_fd, (struct sockaddr *)&server_addr, sizeof(server_addr)) < ZERO)
-    {
+    if( bind(socket_fd, (struct sockaddr *)&server_addr, sizeof(server_addr)) < ZERO){
         /* Error */
         printf("Bind failed!\n");
         return ONE;
     }
-    else
-    {
-        /*printf("Bind success!\n");   */
-    }
-     
     /*  Listen  */
     listen(socket_fd, BACKLOG_3);
-     
     /*  Accept and incoming connections */
     printf("Listening for incoming request...\n");
     client_size = sizeof(struct sockaddr_in);
-     
     /* Accept connection from an incoming client */
     client_sock = accept(socket_fd, (struct sockaddr *)&client_addr, (socklen_t*)&client_size);
-    
-    if (client_sock < ZERO)
-    {
-        /*perror("accept failed");*/
+    if (client_sock < ZERO) {
         printf("Request failed\n");
         return ONE;
     }
-    else
-    {
+    else {
         printf("Request received,");
     }
-     
-    
     memset(client_msg, ZERO,MAX_LEN);
-    /*  Receive a message from client   */
-    while( (read_size = recv(client_sock, client_msg, MAX_LEN, ZERO)) > ZERO )
-    {
-        
-        if(fptr == NULL)
-        {
+    while( (read_size = recv(client_sock, client_msg, MAX_LEN, ZERO)) > ZERO ){        
+        if(fptr == NULL) {
             strcat(output, client_msg);
             fptr = fopen(output, "wb");
-
-            if(fptr != NULL)
-            {
+            if(fptr != NULL) {
                 printf("Saving %s...\n", client_msg);
             }
-            else
-            {
+            else {
                 printf("Fail to open\n");
                 return ONE;
             }
-
             printf("Receiving...\n");
-
-            /*write(client_sock, "Message", strlen("Message") + 1);*/
-
         }
-        else 
-        {  
-
-            if(fwrite(client_msg, ONE, read_size, fptr) < read_size)
-            {
+        else {  
+            if(fwrite(client_msg, ONE, read_size, fptr) < read_size){
                 printf("File write failed on server.\n");
                 exit(EXIT_FAILURE);
             }
-            else
-            {
-
-            }
-            
             num_bytes_recv += read_size;
-            
         }
         printf("Bytes received: %d\n", read_size);
         memset(client_msg, ZERO,MAX_LEN);
-   
     }
     printf("Number of bytes received: %d\n", num_bytes_recv );
-
     if(fptr != NULL)
     {
         fclose(fptr);
     }
-    else
-    {
-
-    }
-
-     
-    if(read_size == ZERO)
-    {
+    if(read_size == ZERO) {
         printf("Client disconnected\n");
         fflush(stdout);
     }
-    else if(read_size == SOCKET_FAIL)
-    {
+    else if(read_size == SOCKET_FAIL) {
         printf("Receive failed\n");
     }
-    else
-    {
+    else {
         printf("Done!\n");
     }
-
-    
-
     close(socket_fd);
     close(client_sock);
+    global_listening = 0;
+    return ZERO;
+}
 
+
+int main(int argc , char *argv[]) {
+    Ftp ftp1;
+    Ftp ftp2;
+    Ftp ftp3;
+    ftp1.listening = 0;
+    ftp1.available = 1;
+    ftp1.global_available = &g_available;
+    ftp2.listening = 0;
+    ftp2.available = 1;
+    ftp2.global_available = &g_available;
+    ftp3.listening = 0;
+    ftp3.available = 1;
+    ftp3.global_available = &g_available;
+
+    while(true){
+        if(g_available){
+
+            if(ftp1.available && !ftp1.listening){
+                printf("ftp 1: listening\n");
+                ftp1.socket = create_Socket();
+            }
+            else if(ftp3.available && ftp2.listening){
+                printf("ftp 2: listening\n");
+                ftp2.socket = create_Socket();
+                pthread_create(&tid, NULL, receive, &ftp);
+            }
+            else if(ftp3.available && ftp3.listening){
+                printf("ftp 3: listening\n");
+                ftp3.socket = create_Socket();
+            }
+        }
+        sleep(1);
+    }
     return ZERO;
     
 }
