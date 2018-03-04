@@ -4,6 +4,7 @@
 #include<sys/socket.h>
 #include<arpa/inet.h>
 #include<unistd.h>
+#include<pthread.h>
 
 #define MAX_LEN 1024
 #define SOCKET_FAIL -1
@@ -31,17 +32,100 @@ int create_Socket()
 
     return sock;
 }
+
+void *transfer_handler(void *in_sock)
+{
+    FILE *fptr = NULL;
+    unsigned char client_msg[MAX_LEN];
+    char output[MAX_LEN] = "copy_";
+    int client_sock = *((int *)in_sock);    /*Put client socket here */
+    int read_size = ZERO;
+    int num_bytes_recv = ZERO;
+
+    /*  Receive a message from client   */
+    memset(client_msg, ZERO,MAX_LEN);
+    while( (read_size = recv(client_sock, client_msg, MAX_LEN, ZERO)) > ZERO )
+    {
+        
+        if(fptr == NULL)
+        {
+            strcat(output, client_msg);
+            fptr = fopen(output, "wb");
+
+            if(fptr != NULL)
+            {
+                printf("Saving %s...\n", client_msg);
+            }
+            else
+            {
+                printf("Fail to open\n");
+                exit(EXIT_FAILURE);
+            }
+
+            printf("Receiving...\n");
+
+            /*write(client_sock, "Message", strlen("Message") + 1);*/
+
+        }
+        else 
+        {  
+
+            if(fwrite(client_msg, ONE, read_size, fptr) < read_size)
+            {
+                printf("File write failed on server.\n");
+                exit(EXIT_FAILURE);
+            }
+            else
+            {
+
+            }
+            
+            num_bytes_recv += read_size;
+            
+        }
+        //printf("Bytes received: %d\n", read_size);
+        memset(client_msg, ZERO,MAX_LEN);
+   
+    }
+    printf("Number of bytes received: %d\n", num_bytes_recv );
+
+    if(fptr != NULL)
+    {
+        fclose(fptr);
+    }
+    else
+    {
+
+    }
+
+     
+    if(read_size == ZERO)
+    {
+        printf("Done.\n");
+        fflush(stdout);
+    }
+    else if(read_size == SOCKET_FAIL)
+    {
+        printf("Receive failed\n");
+    }
+    else
+    {
+        //printf("Done!\n");
+    }
+
+    /* Close client socket */
+    close(*(int *)in_sock);
+    free(in_sock);
+
+    //return ;
+
+}
  
 int main(int argc , char *argv[])
 {
-    int size_file_recv;
-    int num_bytes_recv = ZERO;
-    int socket_fd, client_sock, client_size, read_size;
+    int socket_fd, client_sock, client_size, *new_socket;
     struct sockaddr_in server_addr, client_addr;
-    unsigned char client_msg[MAX_LEN];
-    char output[MAX_LEN] = "copy_";
-    char message_not_full[] = "not full";
-    FILE *fptr = NULL;
+    
      
     /*  Create Socket  */
     socket_fd = create_Socket();
@@ -71,8 +155,28 @@ int main(int argc , char *argv[])
     client_size = sizeof(struct sockaddr_in);
      
     /* Accept connection from an incoming client */
-    client_sock = accept(socket_fd, (struct sockaddr *)&client_addr, (socklen_t*)&client_size);
-    
+    while( client_sock = accept(socket_fd, (struct sockaddr *)&client_addr, (socklen_t*)&client_size) )
+    {
+        printf("Request received,");
+
+        pthread_t s_thread;
+        new_socket = malloc(ONE);
+        *new_socket = client_sock;
+
+        if( pthread_create(&s_thread, NULL, transfer_handler, (void * )new_socket ) < ZERO)
+        {
+            printf("Cannot create thread\n");
+            return ONE;
+        }
+        else
+        {
+
+        }
+
+        pthread_join( s_thread , NULL);
+
+    }
+
     if (client_sock < ZERO)
     {
         /*perror("accept failed");*/
@@ -81,85 +185,16 @@ int main(int argc , char *argv[])
     }
     else
     {
-        printf("Request received,");
+    //    
     }
      
-    
-    memset(client_msg, ZERO,MAX_LEN);
-    /*  Receive a message from client   */
-    while( (read_size = recv(client_sock, client_msg, MAX_LEN, ZERO)) > ZERO )
-    {
-        
-        if(fptr == NULL)
-        {
-            strcat(output, client_msg);
-            fptr = fopen(output, "wb");
-
-            if(fptr != NULL)
-            {
-                printf("Saving %s...\n", client_msg);
-            }
-            else
-            {
-                printf("Fail to open\n");
-                return ONE;
-            }
-
-            printf("Receiving...\n");
-
-            /*write(client_sock, "Message", strlen("Message") + 1);*/
-
-        }
-        else 
-        {  
-
-            if(fwrite(client_msg, ONE, read_size, fptr) < read_size)
-            {
-                printf("File write failed on server.\n");
-                exit(EXIT_FAILURE);
-            }
-            else
-            {
-
-            }
-            
-            num_bytes_recv += read_size;
-            
-        }
-        printf("Bytes received: %d\n", read_size);
-        memset(client_msg, ZERO,MAX_LEN);
-   
-    }
-    printf("Number of bytes received: %d\n", num_bytes_recv );
-
-    if(fptr != NULL)
-    {
-        fclose(fptr);
-    }
-    else
-    {
-
-    }
-
-     
-    if(read_size == ZERO)
-    {
-        printf("Client disconnected\n");
-        fflush(stdout);
-    }
-    else if(read_size == SOCKET_FAIL)
-    {
-        printf("Receive failed\n");
-    }
-    else
-    {
-        printf("Done!\n");
-    }
+    //transfer_handler(client_sock);
 
     
 
+    //close(client_sock);
     close(socket_fd);
-    close(client_sock);
+
 
     return ZERO;
     
